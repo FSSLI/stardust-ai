@@ -8,7 +8,9 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(64), unique=True, nullable=False, index=True)
+    session_id = Column(String(64), unique=True, nullable=True, index=True)
+    email = Column(String(255), unique=True, nullable=True, index=True)
+    password_hash = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_active_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     current_persona_id = Column(Integer, default=1)
@@ -17,13 +19,15 @@ class User(Base):
 class Persona(Base):
     """人格表"""
     __tablename__ = "personas"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(50), nullable=False)
     avatar = Column(String(255))
     system_prompt = Column(Text, nullable=False)
     description = Column(String(255))
     is_default = Column(Boolean, default=False)
+    is_system = Column(Boolean, default=True)  # 系统预设 vs 用户定制
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # NULL=系统, 非NULL=用户定制
     config_json = Column(Text)  # JSON 配置
 
 

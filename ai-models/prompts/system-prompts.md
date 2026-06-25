@@ -9,7 +9,6 @@
 
 ## 基础系统提示词模板
 
-```markdown
 你是 {persona_name}，{persona_description}。
 
 ## 你的特点
@@ -52,7 +51,7 @@ markdown
 }
 对话标题生成提示词
 用于自动给对话起标题：
-markdown
+
 请根据以下对话内容，生成一个简短的标题（不超过10个字）。
 标题要能概括对话主题。
 

@@ -129,6 +129,33 @@ class ChatService:
             await db.commit()
     
     @staticmethod
+    async def edit_message(
+        db: AsyncSession,
+        message_id: int,
+        conversation_id: int,
+        new_content: str
+    ) -> Optional[Message]:
+        """编辑消息并删除该消息之后的所有消息（实现对话分支）"""
+        # 获取要编辑的消息
+        message = await db.get(Message, message_id)
+        if not message or message.conversation_id != conversation_id:
+            return None
+
+        # 更新内容
+        message.content = new_content
+
+        # 删除该消息之后的所有消息
+        await db.execute(
+            Message.__table__.delete()
+            .where(Message.conversation_id == conversation_id)
+            .where(Message.id > message_id)
+        )
+
+        await db.commit()
+        await db.refresh(message)
+        return message
+
+    @staticmethod
     async def delete_conversation(
         db: AsyncSession,
         conversation_id: int,

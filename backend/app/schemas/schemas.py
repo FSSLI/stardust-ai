@@ -17,12 +17,35 @@ class UserCreate(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    session_id: str
+    session_id: Optional[str] = None
+    email: Optional[str] = None
     current_persona_id: int
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
+
+
+# ========== 认证相关 ==========
+class SendCodeRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255, pattern=r'^[^@]+@[^@]+\.[^@]+$')
+
+
+class RegisterRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255, pattern=r'^[^@]+@[^@]+\.[^@]+$')
+    password: str = Field(..., min_length=6, max_length=100)
+    code: str = Field(..., min_length=6, max_length=6)  # 邮件验证码
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
 
 
 # ========== 人格相关 ==========
@@ -81,6 +104,11 @@ class MessageResponse(BaseModel):
 
 class ConversationDetail(ConversationResponse):
     messages: List[MessageResponse]
+
+
+# ========== 消息编辑 ==========
+class EditMessageRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=4000)
 
 
 # ========== 手帐相关 ==========

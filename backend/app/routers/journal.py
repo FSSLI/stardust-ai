@@ -1,29 +1,15 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 
 from app.core.database import get_db
+from app.core.auth import get_current_user
 from app.schemas.schemas import JournalCreate, JournalUpdate, ResponseModel
 from app.services.user_service import user_service
 from app.services.journal_service import journal_service
 
 
 router = APIRouter(prefix="/journal", tags=["手帐"])
-
-
-async def get_current_user(
-    x_session_id: Optional[str] = Header(None),
-    db: AsyncSession = Depends(get_db)
-):
-    """获取当前用户"""
-    if not x_session_id:
-        raise HTTPException(status_code=401, detail="缺少 Session ID")
-    
-    user = await user_service.get_user_by_session(db, x_session_id)
-    if not user:
-        raise HTTPException(status_code=401, detail="无效的 Session ID")
-    
-    return user
 
 
 @router.post("")

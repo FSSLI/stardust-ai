@@ -84,3 +84,90 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ========== Markdown 渲染样式 ========== */
+.markdown-body {
+  line-height: 1.7;
+  word-break: break-word;
+}
+.markdown-body p { margin: 0.4em 0; }
+.markdown-body p:first-child { margin-top: 0; }
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body code {
+  background: rgba(255,255,255,0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+.markdown-body pre {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  margin: 0.6em 0;
+}
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+.markdown-body ul, .markdown-body ol {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+}
+.markdown-body li { margin: 0.2em 0; }
+.markdown-body blockquote {
+  border-left: 3px solid #475569;
+  padding-left: 12px;
+  margin: 0.5em 0;
+  color: #94a3b8;
+}
+.markdown-body a {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  width: 100%;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid #475569;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 0.9em;
+}
+.markdown-body th { background: #1e293b; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+  margin: 0.8em 0 0.3em;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+.markdown-body h1 { font-size: 1.3em; }
+.markdown-body h2 { font-size: 1.15em; }
+.markdown-body h3 { font-size: 1.05em; }
+.markdown-body hr { border: none; border-top: 1px solid #334155; margin: 1em 0; }
+.markdown-body img { max-width: 100%; border-radius: 8px; }
+
+/* ========== Highlight.js 语法高亮（暗色主题） ========== */
+.hljs { color: #e2e8f0; background: #1e293b; }
+.hljs-keyword { color: #c084fc; }
+.hljs-string { color: #86efac; }
+.hljs-number { color: #fde68a; }
+.hljs-comment { color: #64748b; font-style: italic; }
+.hljs-function { color: #60a5fa; }
+.hljs-title { color: #60a5fa; }
+.hljs-params { color: #f8a; }
+.hljs-built_in { color: #c084fc; }
+.hljs-type { color: #f8a; }
+.hljs-attr { color: #60a5fa; }
+.hljs-variable { color: #e2e8f0; }
+.hljs-literal { color: #fde68a; }
+.hljs-meta { color: #64748b; }
+.hljs-tag { color: #f87171; }
+.hljs-name { color: #f87171; }
+.hljs-attribute { color: #f8a; }

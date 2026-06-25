@@ -1,33 +1,20 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import json
 
 from app.core.database import get_db
-from app.schemas.schemas import ChatRequest, ResponseModel
+from app.core.auth import get_current_user
+from app.schemas.schemas import ChatRequest, EditMessageRequest, ResponseModel
 from app.services.user_service import user_service
 from app.services.persona_service import persona_service
 from app.services.chat_service import chat_service
 from app.services.deepseek_service import deepseek_service
+from app.services.memory_service import memory_service
 
 
 router = APIRouter(prefix="/chat", tags=["对话"])
-
-
-async def get_current_user(
-    x_session_id: Optional[str] = Header(None),
-    db: AsyncSession = Depends(get_db)
-):
-    """获取当前用户（通过 session_id）"""
-    if not x_session_id:
-        raise HTTPException(status_code=401, detail="缺少 Session ID")
-    
-    user = await user_service.get_user_by_session(db, x_session_id)
-    if not user:
-        raise HTTPException(status_code=401, detail="无效的 Session ID")
-    
-    return user
 
 
 @router.post("/stream")
@@ -64,37 +51,40 @@ async def chat_stream(
         conversation_id = conversation.id
     
     # 保存用户消息
-    await chat_service.add_message(
+    user_message = await chat_service.add_message(
         db, conversation_id, "user", request.message
     )
-    
+
     # 构建上下文
     context_messages = await chat_service.build_context_messages(
         db, conversation_id, request.message
     )
-    
-    # 构建系统提示词
-    system_prompt = persona.system_prompt
-    
+
+    # 构建系统提示词（注入记忆）
+    memory_context = memory_service.format_memory_context(
+        await memory_service.get_latest(db, user.id)
+    )
+    system_prompt = persona.system_prompt + memory_context
+
     async def generate():
         """SSE 流式生成器"""
         full_response = ""
-        
+
         # 发送开始事件
         yield f"data: {json.dumps({'type': 'start'})}\n\n"
-        
+
         try:
             async for chunk in deepseek_service.chat_stream(
                 context_messages, system_prompt
             ):
                 full_response += chunk
                 yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
-            
+
             # 保存 AI 回复
             message = await chat_service.add_message(
                 db, conversation_id, "assistant", full_response
             )
-            
+
             # 如果是新对话，生成标题
             if not request.conversation_id:
                 title = await deepseek_service.generate_title(
@@ -103,13 +93,84 @@ async def chat_stream(
                 await chat_service.update_conversation_title(
                     db, conversation_id, title
                 )
-            
-            # 发送完成事件
-            yield f"data: {json.dumps({'type': 'done', 'message_id': message.id, 'conversation_id': conversation_id})}\n\n"
-            
+
+            # 发送完成事件（包含用户消息的真实数据库 ID）
+            yield f"data: {json.dumps({'type': 'done', 'message_id': message.id, 'user_message_id': user_message.id, 'conversation_id': conversation_id})}\n\n"
+
+            # 检查是否需要生成记忆摘要（流式返回后再处理）
+            try:
+                if await memory_service.should_summarize(db, user.id):
+                    print("[Memory] 触发自动摘要生成...")
+                    await memory_service.generate_summary(db, user.id)
+            except Exception as e:
+                print(f"[Memory] 摘要生成异常: {e}")
+
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
     
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/regenerate/{conversation_id}")
+async def regenerate_response(
+    conversation_id: int,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    基于当前对话自动生成 AI 回复（不添加新的用户消息）
+    用于编辑消息后重新生成回复
+    """
+    conversation = await chat_service.get_conversation(db, conversation_id, user.id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+    persona = await persona_service.get_persona_by_id(db, conversation.persona_id)
+    if not persona:
+        raise HTTPException(status_code=404, detail="人格不存在")
+
+    # 获取最近消息作为上下文（最后一条就是刚编辑的用户消息）
+    recent = await chat_service.get_recent_messages(db, conversation_id, 10)
+    context_messages = [{"role": m.role, "content": m.content} for m in recent]
+
+    # 注入记忆
+    memory_context = memory_service.format_memory_context(
+        await memory_service.get_latest(db, user.id)
+    )
+    system_prompt = persona.system_prompt + memory_context
+
+    async def generate():
+        full_response = ""
+        yield f"data: {json.dumps({'type': 'start'})}\n\n"
+
+        try:
+            async for chunk in deepseek_service.chat_stream(context_messages, system_prompt):
+                full_response += chunk
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+
+            message = await chat_service.add_message(
+                db, conversation_id, "assistant", full_response
+            )
+            yield f"data: {json.dumps({'type': 'done', 'message_id': message.id, 'conversation_id': conversation_id})}\n\n"
+
+            # 触发记忆摘要
+            try:
+                if await memory_service.should_summarize(db, user.id):
+                    await memory_service.generate_summary(db, user.id)
+            except Exception as e:
+                print(f"[Memory] {e}")
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
     return StreamingResponse(
         generate(),
         media_type="text/event-stream",
@@ -196,5 +257,39 @@ async def delete_conversation(
     )
     if not success:
         raise HTTPException(status_code=404, detail="对话不存在")
-    
+
     return ResponseModel(message="删除成功")
+
+
+@router.put("/messages/{message_id}")
+async def edit_message(
+    message_id: int,
+    request: EditMessageRequest,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """编辑消息（会删除该消息之后的所有消息，形成对话分支）"""
+    # 找到消息所属对话
+    from app.models.models import Message
+    msg = await db.get(Message, message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="消息不存在")
+
+    # 验证对话归属
+    conversation = await chat_service.get_conversation(db, msg.conversation_id, user.id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+    updated = await chat_service.edit_message(
+        db, message_id, msg.conversation_id, request.content
+    )
+    if not updated:
+        raise HTTPException(status_code=500, detail="编辑失败")
+
+    return ResponseModel(
+        message="消息已更新",
+        data={
+            "id": updated.id,
+            "content": updated.content
+        }
+    )

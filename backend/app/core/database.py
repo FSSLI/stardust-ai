@@ -32,5 +32,8 @@ async def get_db():
 
 async def init_db():
     """初始化数据库"""
+    # 确保所有模型被导入（触发 Base.metadata 注册）
+    import app.models.models  # noqa: F401
+    import app.models.memory  # noqa: F401
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
