@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+backend:
+build:
+context: .
+dockerfile: ops/docker/Dockerfile.backend
+container_name: stardust-backend
+ports:
+- "8000:8000"
+volumes:
+- ./data:/app/data
+environment:
+- DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+- DATABASE_URL=sqlite:///app/data/stardust.db
+restart: unless-stopped
+frontend:
+build:
+context: .
+dockerfile: ops/docker/Dockerfile.frontend
+container_name: stardust-frontend
+ports:
+- "80:80"
+depends_on:
+- backend
+restart: unless-stopped
+nginx:
+image: nginx:alpine
+container_name: stardust-nginx
+ports:
+- "443:443"
+volumes:
+- ./ops/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+- ./ssl:/etc/nginx/ssl
+depends_on:
+- frontend
+- backend
+restart: unless-stopped
